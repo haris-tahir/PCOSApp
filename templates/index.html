@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>PCOS Detection App</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .spinner {
+            border: 4px solid rgba(0, 0, 0, 0.1);
+            border-left-color: #3b82f6;
+            border-radius: 50%;
+            width: 40px;
+            height: 40px;
+            animation: spin 1s linear infinite;
+        }
+        @keyframes spin {
+            to {transform: rotate(360deg);}
+        }
+    </style>
+</head>
+<body class="bg-white min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-2xl mx-auto">
+            <h1 class="text-3xl font-bold text-center mb-8 text-gray-800">PCOS Detection from Ultrasound</h1>
+            
+            <!-- Upload Panel -->
+            <div class="bg-white rounded-lg shadow-lg p-6 mb-6">
+                <div class="mb-4">
+                    <div class="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center" id="dropZone">
+                        <input type="file" id="fileInput" class="hidden" accept=".jpg,.jpeg,.png">
+                        <div class="space-y-4">
+                            <div class="flex justify-center">
+                                <svg class="w-12 h-12 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                </svg>
+                            </div>
+                            <p class="text-gray-600">Drag and drop your ultrasound image here</p>
+                            <button type="button" onclick="document.getElementById('fileInput').click()" 
+                                    class="bg-blue-500 hover:bg-blue-600 text-white font-semibold py-2 px-4 rounded-lg transition duration-200">
+                                Upload Image
+                            </button>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Preview -->
+                <div id="imagePreview" class="hidden mb-4">
+                    <img id="preview" class="max-w-full h-auto rounded-lg mx-auto" src="" alt="Preview">
+                </div>
+
+                <!-- Loading Spinner -->
+                <div id="loading" class="hidden flex justify-center items-center py-4">
+                    <div class="spinner"></div>
+                    <span class="ml-3 text-gray-600">Processing image...</span>
+                </div>
+
+                <!-- Result -->
+                <div id="result" class="hidden text-center p-4 rounded-lg mt-4">
+                    <p id="resultText" class="text-xl font-semibold"></p>
+                    <p id="probability" class="text-sm text-gray-600 mt-2"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const dropZone = document.getElementById('dropZone');
+        const fileInput = document.getElementById('fileInput');
+        const imagePreview = document.getElementById('imagePreview');
+        const preview = document.getElementById('preview');
+        const loading = document.getElementById('loading');
+        const result = document.getElementById('result');
+        const resultText = document.getElementById('resultText');
+        const probability = document.getElementById('probability');
+
+        // Prevent default drag behaviors
+        ['dragenter', 'dragover', 'dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, preventDefaults, false);
+            document.body.addEventListener(eventName, preventDefaults, false);
+        });
+
+        // Highlight drop zone when item is dragged over it
+        ['dragenter', 'dragover'].forEach(eventName => {
+            dropZone.addEventListener(eventName, highlight, false);
+        });
+
+        ['dragleave', 'drop'].forEach(eventName => {
+            dropZone.addEventListener(eventName, unhighlight, false);
+        });
+
+        // Handle dropped files
+        dropZone.addEventListener('drop', handleDrop, false);
+        fileInput.addEventListener('change', handleFiles);
+
+        function preventDefaults (e) {
+            e.preventDefault();
+            e.stopPropagation();
+        }
+
+        function highlight(e) {
+            dropZone.classList.add('border-blue-500');
+        }
+
+        function unhighlight(e) {
+            dropZone.classList.remove('border-blue-500');
+        }
+
+        function handleDrop(e) {
+            const dt = e.dataTransfer;
+            const files = dt.files;
+            handleFiles({target: {files: files}});
+        }
+
+        function handleFiles(e) {
+            const file = e.target.files[0];
+            if (file && file.type.startsWith('image/')) {
+                // Show preview
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    preview.src = e.target.result;
+                    imagePreview.classList.remove('hidden');
+                }
+                reader.readAsDataURL(file);
+
+                // Upload and process
+                uploadFile(file);
+            }
+        }
+
+        async function uploadFile(file) {
+            const formData = new FormData();
+            formData.append('file', file);
+
+            // Show loading spinner
+            loading.classList.remove('hidden');
+            result.classList.add('hidden');
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    body: formData
+                });
+
+                const data = await response.json();
+
+                if (response.ok) {
+                    resultText.textContent = data.message;
+                    probability.textContent = `Confidence: ${(data.probability * 100).toFixed(2)}%`;
+                    result.className = data.prediction ? 
+                        'text-center p-4 rounded-lg mt-4 bg-green-100' :
+                        'text-center p-4 rounded-lg mt-4 bg-red-100';
+                } else {
+                    resultText.textContent = data.error;
+                    result.className = 'text-center p-4 rounded-lg mt-4 bg-red-100';
+                }
+            } catch (error) {
+                resultText.textContent = 'Error processing image';
+                result.className = 'text-center p-4 rounded-lg mt-4 bg-red-100';
+            } finally {
+                loading.classList.add('hidden');
+                result.classList.remove('hidden');
+            }
+        }
+    </script>
+</body>
+</html> 

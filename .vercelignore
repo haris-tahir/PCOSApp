@@ -1,0 +1,10 @@
+# .vercelignore
+.git
+.gitignore
+*.md
+*.log
+*.zip
+tests/
+notebooks/
+data/
+models/
